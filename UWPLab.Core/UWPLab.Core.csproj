@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>UWPLab.Core</RootNamespace>
+  </PropertyGroup>
+
+   <ItemGroup>
+     <PackageReference Include="MathNet.Numerics" Version="4.9.0" />
+     <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.9.8">
+       <PrivateAssets>all</PrivateAssets>
+       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+     </PackageReference>
+     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+     <PackageReference Include="NumSharp" Version="0.20.5" />
+   </ItemGroup>
+</Project>

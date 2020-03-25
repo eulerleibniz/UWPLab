@@ -1,0 +1,427 @@
+﻿using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Runtime.InteropServices.WindowsRuntime;
+using Windows.Media;
+using Windows.Storage;
+using Windows.Foundation;
+using Windows.Storage.Pickers;
+using Windows.Storage.Streams;
+using Windows.Graphics.Imaging;
+using Windows.UI.Xaml;
+using Windows.UI.Popups;
+using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Navigation;
+using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Xaml.Controls.Primitives;
+
+namespace SDKTemplate
+{
+    /// <summary>
+    /// An empty page that can be used on its own or navigated to within a Frame.
+    /// </summary>
+    public sealed partial class Scenario2_ImageOperations : Page
+    {
+        enum OperationType : int
+        {
+            Blur = 0,
+            HoughLines,
+            Contours,
+            Canny,
+            MotionDetector
+        }
+
+        private const int ImageRows = 480;
+        private const int ImageCols = 640;
+
+        public AlgorithmProperty StoredProperty { get; set; }
+        public AlgorithmProperty LastStoredProperty { get; set; }
+        private Algorithm storeditem;
+
+        private MainPage rootPage;
+
+        private FrameRenderer previewRenderer;
+        private FrameRenderer outputRenderer;
+
+        private DispatcherTimer fpsTimer;
+        private int frameCount = 0;
+
+        private OperationType currentOperation;
+        private OcvOp operation;
+
+        // Rendering
+        private readonly SemaphoreSlim mLock = new SemaphoreSlim(1);
+        private VideoFrame cacheFrame;
+
+        public Scenario2_ImageOperations()
+        {
+            this.InitializeComponent();
+            this.previewRenderer = new FrameRenderer(this.PreviewImage);
+            this.outputRenderer = new FrameRenderer(this.OutputImage);
+
+            this.fpsTimer = new DispatcherTimer()
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            this.fpsTimer.Tick += this.UpdateFps;
+        }
+
+        private void UpdateFps(object sender, object e)
+        {
+            var fc = Interlocked.Exchange(ref this.frameCount, 0);
+            this.FPSMonitor.Text = "FPS: " + fc;
+        }
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            this.rootPage = MainPage.Current;
+
+            // setting up the combobox, and default operation
+            this.OperationComboBox.ItemsSource = Enum.GetValues(typeof(OperationType));
+            this.OperationComboBox.SelectedIndex = (int)OperationType.Blur;
+
+            this.operation = new OcvOp();
+            this.FileOpen.IsEnabled = true;
+            this.FileSaving.IsEnabled = true;
+            this.fpsTimer.Start();
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs args)
+        {
+            this.fpsTimer.Stop();
+        }
+
+        /// <summary>
+        /// Handles a frame arrived event and renders the frame to the screen.
+        /// </summary>
+        private async Task ProcessWithOpenCV(VideoFrame frame)
+        {
+            if (frame != null)
+            {
+                SoftwareBitmap originalBitmap = null;
+                var inputBitmap = frame.SoftwareBitmap;
+                if (inputBitmap != null)
+                {
+                    try
+                    {
+                        // The XAML Image control can only display images in BRGA8 format with premultiplied or no alpha
+                        // The frame reader as configured in this sample gives BGRA8 with straight alpha, so need to convert it
+                        originalBitmap = SoftwareBitmap.Convert(inputBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+
+                        SoftwareBitmap outputBitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, originalBitmap.PixelWidth, originalBitmap.PixelHeight, BitmapAlphaMode.Premultiplied);
+
+                        // Operate on the image in the manner chosen by the user.
+                        if (this.currentOperation == OperationType.Blur)
+                        {
+                            this.operation.Blur(originalBitmap, outputBitmap, this.storeditem);
+                        }
+                        else if (this.currentOperation == OperationType.HoughLines)
+                        {
+                            this.operation.HoughLines(originalBitmap, outputBitmap, this.storeditem);
+                        }
+                        else if (this.currentOperation == OperationType.Contours)
+                        {
+                            this.operation.Contours(originalBitmap, outputBitmap, this.storeditem);
+                        }
+                        else if (this.currentOperation == OperationType.Canny)
+                        {
+                            this.operation.Canny(originalBitmap, outputBitmap, this.storeditem);
+                        }
+                        else if (this.currentOperation == OperationType.MotionDetector)
+                        {
+                        }
+
+                        // Display both the original bitmap and the processed bitmap.
+                        this.previewRenderer.RenderFrame(originalBitmap);
+                        this.outputRenderer.RenderFrame(outputBitmap);
+                    }
+                    catch (Exception ex)
+                    {
+                        await (new MessageDialog(ex.Message)).ShowAsync();
+                    }
+                }
+
+                Interlocked.Increment(ref this.frameCount);
+            }
+        }
+
+        private async void OnOpComboBoxSelectionChanged(object sender, RoutedEventArgs e)
+        {
+            ComboBox comboBox = sender as ComboBox;
+
+            // Process ComboBox selection when first loaded or when selection has changed from the current.
+            if (comboBox != null && comboBox.IsLoaded == true && (int)this.currentOperation == comboBox.SelectedIndex)
+                return;
+
+            this.currentOperation = (OperationType)((sender as ComboBox).SelectedItem);
+
+            if (OperationType.Blur == this.currentOperation)
+            {
+                this.CurrentOperationTextBlock.Text = "Current: Blur";
+            }
+            else if (OperationType.Contours == this.currentOperation)
+            {
+                this.CurrentOperationTextBlock.Text = "Current: Contours";
+            }
+            else if (OperationType.Canny == this.currentOperation)
+            {
+                this.CurrentOperationTextBlock.Text = "Current: Canny";
+            }
+            else if (OperationType.HoughLines == this.currentOperation)
+            {
+                this.CurrentOperationTextBlock.Text = "Current: Line detection";
+            }
+            else if (OperationType.MotionDetector == this.currentOperation)
+            {
+                this.CurrentOperationTextBlock.Text = "Current: Motion detection";
+            }
+            else
+            {
+                this.CurrentOperationTextBlock.Text = string.Empty;
+            }
+
+            this.rootPage.algorithms[this.OperationComboBox.SelectedIndex].ResetEnable();
+            this.storeditem = this.rootPage.algorithms[this.OperationComboBox.SelectedIndex];
+
+            await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+            {
+                this.collection.ItemsSource = Algorithm.GetObjects(this.storeditem);
+            });
+
+            if (this.cacheFrame != null)
+                await this.ProcessWithOpenCV(this.cacheFrame);
+        }
+
+        private async void OnSliderValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            var slider = sender as Slider;
+
+            if (this.storeditem != null && this.StoredProperty != null)
+            {
+                if (this.StoredProperty.isInitialize)
+                {
+                    if (slider.Tag?.ToString() != this.StoredProperty.ParameterName) return;
+                    if (slider.Value >= this.StoredProperty.MinValue && slider.Value <= this.StoredProperty.MaxValue)
+                    {
+                        this.StoredProperty.CurrentValue = slider.Value;
+                        this.UpdateStoredAlgorithm(this.currentOperation, this.StoredProperty);
+                        if (this.cacheFrame != null) await this.ProcessWithOpenCV(this.cacheFrame);
+                    }
+                }
+                else
+                {
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        // initialize slider
+                        this.collection.ItemsSource = Algorithm.GetObjects(this.storeditem);
+                        this.StoredProperty.isInitialize = true;
+                    });
+                }
+            }
+        }
+
+        private async void OnCollectionItemClick(object sender, ItemClickEventArgs e)
+        {
+            // Get the collection item corresponding to the clicked item.
+            var container = this.collection.ContainerFromItem(e.ClickedItem) as ListViewItem;
+
+            if (container != null)
+            {
+                // Stash the clicked item for use later. We'll need it when we connect back from the detailpage.
+                this.StoredProperty = container.Content as AlgorithmProperty;
+                this.storeditem.RevertEnable(this.StoredProperty.ParameterName);
+                await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                {
+                    this.collection.ItemsSource = Algorithm.GetObjects(this.storeditem);
+                });
+            }
+        }
+
+        private void UpdateStoredAlgorithm(OperationType operationType, AlgorithmProperty algorithmProperty)
+        {
+            if (OperationType.Blur == operationType)
+            {
+                if (algorithmProperty.ParameterName == "Ksize")
+                {
+                    this.storeditem.UpdateCurrentValue(algorithmProperty);
+                    this.storeditem.UpdateProperty("Anchor", AlgorithmPropertyType.maxValue, algorithmProperty.CurrentDoubleValue);
+                }
+                else
+                {
+                    this.storeditem.UpdateCurrentValue(algorithmProperty);
+                }
+            }
+            else if (OperationType.Contours == this.currentOperation)
+            {
+                this.storeditem.UpdateCurrentValue(algorithmProperty);
+            }
+            else if (OperationType.Canny == this.currentOperation)
+            {
+                this.storeditem.UpdateCurrentValue(algorithmProperty);
+            }
+            else if (OperationType.HoughLines == this.currentOperation)
+            {
+                this.storeditem.UpdateCurrentValue(algorithmProperty);
+            }
+            else if (OperationType.MotionDetector == this.currentOperation)
+            {
+                this.storeditem.UpdateCurrentValue(algorithmProperty);
+            }
+        }
+
+        /// <summary>
+        /// Writes the given object instance to a binary file.
+        /// <para>Object type (and all child types) must be decorated with the [Serializable] attribute.</para>
+        /// <para>To prevent a variable from being serialized, decorate it with the [NonSerialized] attribute; cannot be applied to properties.</para>
+        /// </summary>
+        /// <typeparam name="T">The type of object being written to the XML file.</typeparam>
+        /// <param name="filePath">The file path to write the object instance to.</param>
+        /// <param name="objectToWrite">The object instance to write to the XML file.</param>
+        /// <param name="append">If false the file will be overwritten if it already exists. If true the contents will be appended to the file.</param>
+        public static void WriteToBinaryFile<T>(string filePath, T objectToWrite, bool append = false)
+        {
+            using (Stream stream = File.Open(filePath, append ? FileMode.Append : FileMode.Create))
+            {
+                var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                binaryFormatter.Serialize(stream, objectToWrite);
+            }
+        }
+
+        /// <summary>
+        /// Reads an object instance from a binary file.
+        /// </summary>
+        /// <typeparam name="T">The type of object to read from the XML.</typeparam>
+        /// <param name="filePath">The file path to read the object instance from.</param>
+        /// <returns>Returns a new instance of the object read from the binary file.</returns>
+        public static T ReadFromBinaryFile<T>(string filePath)
+        {
+            using (Stream stream = File.Open(filePath, FileMode.Open))
+            {
+                var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                return (T)binaryFormatter.Deserialize(stream);
+            }
+        }
+
+        private async void ToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+
+            await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+            {
+                if (this.SettingPanel.Visibility == Visibility.Collapsed)
+                {
+                    this.Setting.Glyph = "\uE751";
+                    this.SettingPanel.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    this.Setting.Glyph = "\uE713";
+                    this.SettingPanel.Visibility = Visibility.Collapsed;
+                }
+            });
+        }
+
+        // Saving output Image
+        private async void OnSave(object sender, RoutedEventArgs e)
+        {
+        }
+
+        // Open a Exist Image
+        private async void OnOpen(object sender, RoutedEventArgs e)
+        {
+            this.FileOpen.IsEnabled = false;
+            this.FileSaving.IsEnabled = false;
+
+            await this.mLock.WaitAsync();
+
+            try
+            {
+                this.cacheFrame = await LoadVideoFrameFromFilePickedAsync();
+                if (this.cacheFrame != null)
+                {
+                    SoftwareBitmapSource source = new SoftwareBitmapSource();
+                    await source.SetBitmapAsync(this.cacheFrame.SoftwareBitmap);
+                    this.PreviewImage.Source = source;
+                    await this.ProcessWithOpenCV(this.cacheFrame);
+                }
+            }
+            catch (Exception ex)
+            {
+                await (new MessageDialog(ex.Message)).ShowAsync();
+            }
+
+            this.mLock.Release();
+
+            this.FileOpen.IsEnabled = true;
+            this.FileSaving.IsEnabled = true;
+        }
+
+        /// <summary>
+        /// Launch file picker for user to select a picture file and return a VideoFrame
+        /// </summary>
+        /// <returns>VideoFrame instanciated from the selected image file</returns>
+        public static IAsyncOperation<VideoFrame> LoadVideoFrameFromFilePickedAsync()
+        {
+            return AsyncInfo.Run(async (token) =>
+            {
+                // Trigger file picker to select an image file
+                FileOpenPicker fileOpenPicker = new FileOpenPicker();
+                fileOpenPicker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
+                fileOpenPicker.FileTypeFilter.Add(".jpg");
+                fileOpenPicker.FileTypeFilter.Add(".png");
+                fileOpenPicker.ViewMode = PickerViewMode.Thumbnail;
+                StorageFile selectedStorageFile = await fileOpenPicker.PickSingleFileAsync();
+
+                if (selectedStorageFile == null)
+                {
+                    return null;
+                }
+
+                // Decoding image file content into a SoftwareBitmap, and wrap into VideoFrame
+                VideoFrame resultFrame = null;
+                SoftwareBitmap softwareBitmap = null;
+                using (IRandomAccessStream stream = await selectedStorageFile.OpenAsync(FileAccessMode.Read))
+                {
+                    // Create the decoder from the stream 
+                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+
+                    // Get the SoftwareBitmap representation of the file in BGRA8 format
+                    softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+
+                    // Convert to friendly format for UI display purpose
+                    softwareBitmap = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                }
+
+                // Encapsulate the image in a VideoFrame instance
+                resultFrame = VideoFrame.CreateWithSoftwareBitmap(softwareBitmap);
+
+                return resultFrame;
+            });
+        }
+
+        private async void OnComboBoxSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (this.storeditem != null && this.StoredProperty != null)
+            {
+                if (this.StoredProperty.isInitialize)
+                {
+                    var combo = sender as ComboBox;
+                    var selectIdx = combo.SelectedIndex;
+                    if (combo.Tag?.ToString() != this.StoredProperty.ParameterName) return;
+                    this.StoredProperty.CurrentValue = (double)selectIdx;
+                    this.UpdateStoredAlgorithm(this.currentOperation, this.StoredProperty);
+                    if (this.cacheFrame != null) await this.ProcessWithOpenCV(this.cacheFrame);
+                }
+                else
+                {
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        // initialize slider
+                        this.collection.ItemsSource = Algorithm.GetObjects(this.storeditem);
+                        this.StoredProperty.isInitialize = true;
+                    });
+                }
+            }
+        }
+    }
+}

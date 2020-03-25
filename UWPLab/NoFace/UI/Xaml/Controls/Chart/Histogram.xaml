@@ -1,0 +1,48 @@
+﻿<UserControl
+    x:Class="NoFace.UI.Xaml.Controls.Chart.Histogram"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Style="{StaticResource PageStyle}"
+    xmlns:tc="using:Telerik.UI.Xaml.Controls.Chart"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:tk="using:Microsoft.Toolkit.Uwp.UI.Controls"
+    xmlns:converters="using:Microsoft.Toolkit.Uwp.UI.Converters"
+    mc:Ignorable="d"
+    d:DesignHeight="300"
+    d:DesignWidth="400">
+
+    <Grid x:Name="ContentArea" Margin="{StaticResource MediumLeftRightMargin}">
+        <Grid Background="{ThemeResource SystemControlPageBackgroundChromeLowBrush}" Padding="10" ColumnSpacing="10" RowSpacing="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="1*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+            <controls:NumberBox Grid.Row="0" Grid.Column="0"
+                                        x:Name="numberBox" Value="NaN" PlaceholderText="Enter Numer of Data: 1 + 2^2" AcceptsExpression="True" HorizontalAlignment="Stretch"/>
+            <tc:RadCartesianChart x:Name="radCartesianChart" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">
+                <tc:RadCartesianChart.HorizontalAxis>
+                    <tc:LinearAxis />
+                </tc:RadCartesianChart.HorizontalAxis>
+                <tc:RadCartesianChart.VerticalAxis>
+                    <tc:LinearAxis />
+                </tc:RadCartesianChart.VerticalAxis>
+                <tc:ScatterLineSeries x:Name="scatterLineSeries" ItemsSource="{x:Bind Mode=OneWay, Path=chartSource}"   ShowLabels="False">
+                    <tc:ScatterLineSeries.XValueBinding>
+                        <tc:PropertyNameDataPointBinding PropertyName="X" />
+                    </tc:ScatterLineSeries.XValueBinding>
+                    <tc:ScatterLineSeries.YValueBinding>
+                        <tc:PropertyNameDataPointBinding PropertyName="Y" />
+                    </tc:ScatterLineSeries.YValueBinding>
+                </tc:ScatterLineSeries>
+            </tc:RadCartesianChart>
+        </Grid>
+    </Grid>
+</UserControl>
+

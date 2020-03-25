@@ -1,0 +1,13 @@
+﻿[*.cs]
+
+# SA1600: Elements should be documented
+dotnet_diagnostic.SA1600.severity = warning
+
+# SA1633: File should have header
+dotnet_diagnostic.SA1633.severity = warning
+
+# IDE0051: Remove unused private members
+dotnet_diagnostic.IDE0051.severity = warning
+
+# SA1200: Using Directives Must Be Placed Correctly
+dotnet_diagnostic.SA1200.severity = suggestion

@@ -1,0 +1,29 @@
+# top-most EditorConfig file
+root = true
+
+[*]
+end_of_line = crlf
+
+[*.{cs,xaml}]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# SA1601: Partial elements should be documented
+dotnet_diagnostic.SA1601.severity = suggestion
+
+# SA1600: Elements should be documented
+dotnet_diagnostic.SA1600.severity = suggestion
+
+# SA1200: Using directives should be placed correctly
+dotnet_diagnostic.SA1200.severity = suggestion
+
+# SA1633: File should have header
+dotnet_diagnostic.SA1633.severity = suggestion
+
+# SA1602: Enumeration items should be documented
+dotnet_diagnostic.SA1602.severity = suggestion
+
+# SA1208: System using directives should be placed before other using directives
+dotnet_diagnostic.SA1208.severity = suggestion
